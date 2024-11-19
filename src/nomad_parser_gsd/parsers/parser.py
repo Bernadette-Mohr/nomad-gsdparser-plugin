@@ -1,7 +1,10 @@
 import os
+import sys
+
+#! TODO: Why is TYPE_CHECKING False?
 from typing import TYPE_CHECKING, List, Iterable, Union
 
-if TYPE_CHECKING:
+if not TYPE_CHECKING:
     from nomad.datamodel.datamodel import (
         EntryArchive,
     )
@@ -18,7 +21,8 @@ from ase.utils import (
     formula_hill,
 )  # TODO: use to generate chemical formula if symbols2numbers is True?
 from collections import defaultdict
-
+import h5py
+from h5py import Group
 from nomad_simulations.schema_packages.particles_state import ParticlesState
 import nomad_simulations.schema_packages.properties.energies as energy_module
 import nomad_simulations.schema_packages.properties.forces as force_module
@@ -123,6 +127,8 @@ class GSDParser(MDParser):
         self._program_dict = None
         self._n_frames = None
         self._first_frame = True
+        # ! Test to figure out what format is expected for the particles group:
+        self.h5_write = h5py.File('test_gsd-nomad.h5', 'w')
         self._time_unit = ureg.picosecond
         # ['N', 'position', 'orientation', 'types', 'typeid', 'mass', 'charge',
         # 'diameter', 'body', 'moment_inertia', 'velocity', 'angmom', 'image',
@@ -143,16 +149,6 @@ class GSDParser(MDParser):
             'periodic_boundary_conditions': None,
             'dimensionality': 'dimensions',
         }
-
-    def enforce_array_data_type(self, value):
-        if isinstance(value, np.ndarray):
-            if np.issubdtype(value.dtype, np.integer):
-                # Handle all integer types (int32, uint32, etc.) as int32
-                value = np.asarray(value, dtype=np.int32)
-            elif np.issubdtype(value.dtype, np.floating):
-                # Handle all floating-point types as float64
-                value = np.asarray(value, dtype=np.float64)
-        return value
 
     # Load GSD file as file layer object to access generating program name and version.
     def get_program_info(self):
@@ -219,8 +215,8 @@ class GSDParser(MDParser):
         mol_dict = []
         for i_mol, mol in enumerate(molecules):
             mol_dict.append({})
-            mol_dict[i_mol]['indices'] = np.array(mol.nodes())
-            mol_dict[i_mol]['bonds'] = np.array(mol.edges())
+            mol_dict[i_mol]['indices'] = np.array(mol.nodes(), dtype=np.int32)
+            mol_dict[i_mol]['bonds'] = np.array(mol.edges(), dtype=np.int32)
             mol_dict[i_mol]['type'] = 'molecule'
             mol_dict[i_mol]['is_molecule'] = True
             if particles_typeid is None and len(particle_types) == n_particles:
@@ -299,6 +295,7 @@ class GSDParser(MDParser):
         mol_groups[0]['molecules'].append(molecules[0])
         mol_groups[0]['type'] = 'molecule_group'
         mol_groups[0]['is_molecule'] = False
+        print(mol_groups)
         for mol in molecules[1:]:
             flag_mol_group_exists = False
             for i_mol_group in range(len(mol_groups)):
@@ -331,10 +328,83 @@ class GSDParser(MDParser):
                 molecule['label'] = molecule_labels[i_mol_group]
                 mol_indices = molecule['indices']
                 mol_group_indices.append(mol_indices)
-
             mol_group['indices'] = np.concatenate(mol_group_indices)
 
-        return mol_groups
+        topology_keys = [
+            'type',
+            'formula',
+            'particles_group',
+            'label',
+            'is_molecule',
+            'indices',
+        ]
+        custom_keys = ['molecules', 'residue_groups', 'residues']  # ? Remove residues?
+        mol_groups_dict, topology_dict = dict(), dict()
+        mol_groups_label = 'particles_group'  # ? Need?
+        for i_mol_group, mol_group in enumerate(
+            mol_groups
+        ):  # mol_group: dict of same molecule type
+            gsd_mol_group_label = f'group_{molecule_labels[i_mol_group]}'
+            gsd_mol_group_dict = dict()
+            for mol_group_key in mol_group.keys():
+                print(mol_group_key)
+                if mol_group_key not in topology_keys + custom_keys:
+                    continue
+                if mol_group_key != 'molecules':
+                    gsd_mol_group_dict[mol_group_key] = mol_group[mol_group_key]
+                else:
+                    gsd_molecules_group_label = 'particles_group'
+                    gsd_molecules_group_dict = dict()
+                    for i_molecule, molecule in enumerate(mol_group[mol_group_key]):
+                        gsd_molecule_label = f'molecule_{str(i_molecule)}'
+                        gsd_molecule_dict = dict()
+                        for mol_key in molecule.keys():
+                            if mol_key not in topology_keys + custom_keys:
+                                continue
+                            # if mol_key != 'residue_groups':
+                            gsd_molecule_dict[mol_key] = molecule[mol_key]
+                        gsd_molecules_group_dict[gsd_molecule_label] = gsd_molecule_dict
+                    gsd_mol_group_dict[gsd_molecules_group_label] = (
+                        gsd_molecules_group_dict
+                    )
+            mol_groups_dict[gsd_mol_group_label] = gsd_mol_group_dict
+        topology_dict[mol_groups_label] = mol_groups_dict
+        print(topology_dict.keys())
+        for key in topology_dict.keys():
+            print(topology_dict[key].keys())
+            for key2 in topology_dict[key].keys():
+                print(topology_dict[key][key2].keys())
+        sys.exit()
+        #                 else:
+        #                     hdf5_residue_groups = hdf5_mol.create_group('particles_group')
+        #                     for i_res_group, res_group in enumerate(molecule[mol_key]):
+        #                         hdf5_res_group = hdf5_residue_groups.create_group(
+        #                             'residue_group_' + str(i_res_group)
+        #                         )
+        #                         for res_group_key in res_group.keys():
+        #                             if res_group_key not in topology_keys + custom_keys:
+        #                                 continue
+        #                             if res_group_key != 'residues':
+        #                                 hdf5_res_group[res_group_key] = res_group[
+        #                                     res_group_key
+        #                                 ]
+        #                             else:
+        #                                 hdf5_residues = hdf5_res_group.create_group(
+        #                                     'particles_group'
+        #                                 )
+        #                                 for i_res, res in enumerate(
+        #                                     res_group[res_group_key]
+        #                                 ):
+        #                                     hdf5_res = hdf5_residues.create_group(
+        #                                         'residue_' + str(i_res)
+        #                                     )
+        #                                     for res_key in res.keys():
+        #                                         if res_key not in topology_keys:
+        #                                             continue
+        #                                         if res[res_key] is not None:
+        #                                             hdf5_res[res_key] = res[res_key]
+
+        return topology_dict  # mol_groups
 
     def get_connectivity(self, interactions, molecule_labels=None):
         # TODO: Carry molecule_labels through to a meaningful point in case molecule labels were passed by user.
@@ -342,7 +412,7 @@ class GSDParser(MDParser):
         for key in interactions.keys():
             if interactions[key]['N'] == 0:
                 self.logger.warn(f'No {key} information found in GSD file.')
-                _connectivity[key] = None
+                _connectivity[key] = []  # None
             else:
                 _connectivity[key] = list(
                     map(tuple, interactions[key]['group'].tolist())
@@ -354,7 +424,7 @@ class GSDParser(MDParser):
 
         return _connectivity
 
-    def get_system_info(self, frame_idx: int = None, frame=None) -> dict[str, dict]:
+    def get_system_info(self, frame_idx=None, frame=None):
         self._system_info = {'system': dict(), 'outputs': dict()}
         _path = f'{frame_idx}'
         _interaction_types = [
@@ -422,12 +492,17 @@ class GSDParser(MDParser):
         # Get quantities from particles chunk of GSD file
         for key, gsd_key in self._nomad_to_particles_group_map.items():
             section = info_keys[key]
-            value = self._particle_data_dict[gsd_key] if gsd_key is not None else None
             if isinstance(section, list):
                 for sec in section:
-                    self._system_info[sec][key] = self.enforce_array_data_type(value)
+                    self._system_info[sec][key] = (
+                        self._particle_data_dict[gsd_key]
+                        if gsd_key is not None
+                        else None
+                    )
             else:
-                self._system_info[section][key] = self.enforce_array_data_type(value)
+                self._system_info[section][key] = (
+                    self._particle_data_dict[gsd_key] if gsd_key is not None else None
+                )
 
         def box_to_matrix_converter(box):
             """
@@ -531,51 +606,48 @@ class GSDParser(MDParser):
         self,
         nomad_sec: ModelSystem,
         gsd_sec_particlesgroup: dict,
-        # path_particlesgroup: str,
+        # path_particlesgroup='',
     ):
         data = {}
         for key in gsd_sec_particlesgroup.keys():
-            print(key)
-            #     path_particlesgroup_key = f'{path_particlesgroup}.{key}'
-            #     particles_group = {
-            #         group_key: self._data_parser.get(
-            #             f'{path_particlesgroup_key}.{group_key}'
-            #         )
-            #         for group_key in h5md_sec_particlesgroup[key].keys()
-            #     }
+            particles_group = {
+                group_key: gsd_sec_particlesgroup[key].get(group_key, {})
+                for group_key in gsd_sec_particlesgroup[key].keys()
+            }
             sec_model_system = ModelSystem()
-        #     nomad_sec.model_system.append(sec_model_system)
-        #     data['branch_label'] = particles_group.pop('label', None)
-        #     data['atom_indices'] = particles_group.pop('indices', None)
-        #     # TODO remove the deprecated below from the test file
-        #     # sec_atomsgroup.type = particles_group.pop("type", None) #? deprecate?
-        #     particles_group.pop('type', None)
-        #     # sec_atomsgroup.is_molecule = particles_group.pop("is_molecule", None) #? deprecate?
-        #     particles_group.pop('is_molecule', None)
-        #     particles_group.pop('formula', None)  # covered in normalization now
-        #     # write all the standard quantities to the archive
-        #     self.parse_section(data, sec_model_system)
-        #     particles_subgroup = particles_group.pop('particles_group', None)
+            nomad_sec.model_system.append(sec_model_system)
+            data['branch_label'] = particles_group.pop('label', None)
+            data['atom_indices'] = particles_group.pop('indices', None)
+            # TODO remove the deprecated below from the test file
+            # sec_atomsgroup.type = particles_group.pop("type", None) #? deprecate?
+            particles_group.pop('type', None)
+            # sec_atomsgroup.is_molecule = particles_group.pop("is_molecule", None) #? deprecate?
+            particles_group.pop('is_molecule', None)
+            particles_group.pop('formula', None)  # covered in normalization now
+            # write all the standard quantities to the archive
+            self.parse_section(data, sec_model_system)
+            particles_subgroup = particles_group.pop('particles_group', None)
+            # set the remaining attributes
+            for particles_group_key in particles_group.keys():
+                val = particles_group.get(particles_group_key)
+                units = val.units if hasattr(val, 'units') else None
+                val = val.magnitude if units is not None else val
+                sec_model_system.custom_system_attributes.append(
+                    # ! As long as value is dictionary, use SubSection
+                    ParamEntry(name=particles_group_key, value=val, unit=units)
+                )
 
-        #     # set the remaining attributes
-        #     for particles_group_key in particles_group.keys():
-        #         val = particles_group.get(particles_group_key)
-        #         units = val.units if hasattr(val, 'units') else None
-        #         val = val.magnitude if units is not None else val
-        #         sec_model_system.custom_system_attributes.append(
-        #             ParamEntry(name=particles_group_key, value=val, unit=units)
-        #         )
-
-        #     # get the next branch level
-        #     if particles_subgroup:
-        #         self.parse_system_hierarchy(
-        #             sec_model_system,
-        #             particles_subgroup,
-        #             f'{path_particlesgroup_key}.particles_group',
-        #         )
+            # get the next branch level
+            if particles_subgroup:
+                self.parse_system_hierarchy(
+                    sec_model_system,
+                    particles_subgroup,
+                    # f'{path_particlesgroup_key}.particles_group',
+                )
 
     def parse_system(self, simulation, frame_idx=None, frame=None):
         particles_dict = self._system_info.get('system')
+        # print(particles_dict.keys())
         _path = f'{frame_idx}'
         if not particles_dict:
             self.logger.error('No particle information found in GSD file.')
@@ -598,7 +670,7 @@ class GSDParser(MDParser):
         particles_dict['labels'] = particles_dict.get('labels')
 
         bond_dict = self._data_parser.get(f'{frame_idx}.bonds', frame=frame).__dict__
-        particles_dict['bond_list'] = self.enforce_array_data_type(bond_dict['group'])
+        particles_dict['bond_list'] = bond_dict['group']
 
         # ! Natively, no time step stored in GSD file. Copy frame index instead,
         # ! alert user to missing information.
@@ -635,10 +707,10 @@ class GSDParser(MDParser):
         self.parse_trajectory_step(particles_dict, simulation)
 
         # TODO: parse and store topology in every step to accomodate time-dependent topologies
-        # if topology:
-        #     self.parse_system_hierarchy(simulation.model_system[-1], topology)
+        if topology:
+            self.parse_system_hierarchy(simulation.model_system[-1], topology)
 
-    # Additional data are stored in the log dictionary as numpy arrays:
+    # TODO: Additional data are stored in the log dictionary as numpy arrays:
     def parse_outputs(self, simulation: Simulation):
         """
         Logged data encompasses values computed at simulation time that are too expensive
@@ -702,10 +774,12 @@ class GSDParser(MDParser):
             self.get_system_info(frame_idx=frame_idx, frame=frame)
             self.parse_system(simulation, frame_idx=frame_idx, frame=frame)
 
-            # ? Forces etc. are user-defined and read via get_logged_info?
+            # ? Forces etc. are user-defined and read via get_logged_info
             # TODO: Extract observables from logged data, parse to ModelOutput
             # self.parse_outputs(simulation, frame_idx=frame_idx, frame=frame)
 
             # observable_keys = {
             #     'forces': 'calculation',
             # }
+        # ! 'NameError: name 'EntryArchive' is not defined' because of TYPE_CHECKING=False?!
+        self.archive.m_add_sub_section(EntryArchive.data, simulation)

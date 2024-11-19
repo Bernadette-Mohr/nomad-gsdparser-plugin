@@ -191,7 +191,6 @@ class MDParser(Parser):
                 simulation_cell.atoms_state.append(atoms_state)
         self.parse_section(simulation_cell_dict, simulation_cell)
         model_system.cell.append(simulation_cell)
-        print(data)
         self.parse_section(data, model_system)
         simulation.model_system.append(model_system)
 

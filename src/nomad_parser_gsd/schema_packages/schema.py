@@ -32,7 +32,15 @@ if TYPE_CHECKING:
 import nomad_simulations
 import numpy as np
 from nomad.datamodel.data import ArchiveSection
-from nomad.metainfo import Context, MEnum, Quantity, Section, SectionProxy, SubSection
+from nomad.metainfo import (
+    Context,
+    MEnum,
+    Quantity,
+    Section,
+    SectionProxy,
+    SubSection,
+    JSON,
+)
 
 
 class ParamEntry(ArchiveSection):
@@ -49,7 +57,7 @@ class ParamEntry(ArchiveSection):
     )
 
     value = Quantity(
-        type=str,
+        type=JSON,
         shape=[],
         description="""
         Value of the parameter as a string.
