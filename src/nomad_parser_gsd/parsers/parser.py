@@ -347,7 +347,6 @@ class GSDParser(MDParser):
             gsd_mol_group_label = f'group_{molecule_labels[i_mol_group]}'
             gsd_mol_group_dict = dict()
             for mol_group_key in mol_group.keys():
-                print(mol_group_key)
                 if mol_group_key not in topology_keys + custom_keys:
                     continue
                 if mol_group_key != 'molecules':
@@ -374,35 +373,6 @@ class GSDParser(MDParser):
             print(topology_dict[key].keys())
             for key2 in topology_dict[key].keys():
                 print(topology_dict[key][key2].keys())
-        sys.exit()
-        #                 else:
-        #                     hdf5_residue_groups = hdf5_mol.create_group('particles_group')
-        #                     for i_res_group, res_group in enumerate(molecule[mol_key]):
-        #                         hdf5_res_group = hdf5_residue_groups.create_group(
-        #                             'residue_group_' + str(i_res_group)
-        #                         )
-        #                         for res_group_key in res_group.keys():
-        #                             if res_group_key not in topology_keys + custom_keys:
-        #                                 continue
-        #                             if res_group_key != 'residues':
-        #                                 hdf5_res_group[res_group_key] = res_group[
-        #                                     res_group_key
-        #                                 ]
-        #                             else:
-        #                                 hdf5_residues = hdf5_res_group.create_group(
-        #                                     'particles_group'
-        #                                 )
-        #                                 for i_res, res in enumerate(
-        #                                     res_group[res_group_key]
-        #                                 ):
-        #                                     hdf5_res = hdf5_residues.create_group(
-        #                                         'residue_' + str(i_res)
-        #                                     )
-        #                                     for res_key in res.keys():
-        #                                         if res_key not in topology_keys:
-        #                                             continue
-        #                                         if res[res_key] is not None:
-        #                                             hdf5_res[res_key] = res[res_key]
 
         return topology_dict  # mol_groups
 
@@ -610,10 +580,12 @@ class GSDParser(MDParser):
     ):
         data = {}
         for key in gsd_sec_particlesgroup.keys():
+            print('gsd_sec_particlesgroup key:', key)
             particles_group = {
                 group_key: gsd_sec_particlesgroup[key].get(group_key, {})
                 for group_key in gsd_sec_particlesgroup[key].keys()
             }
+            print('particles_group keys:', particles_group.keys())
             sec_model_system = ModelSystem()
             nomad_sec.model_system.append(sec_model_system)
             data['branch_label'] = particles_group.pop('label', None)
@@ -630,12 +602,10 @@ class GSDParser(MDParser):
             # set the remaining attributes
             for particles_group_key in particles_group.keys():
                 val = particles_group.get(particles_group_key)
-                units = val.units if hasattr(val, 'units') else None
-                val = val.magnitude if units is not None else val
-                sec_model_system.custom_system_attributes.append(
-                    # ! As long as value is dictionary, use SubSection
-                    ParamEntry(name=particles_group_key, value=val, unit=units)
-                )
+                # sec_model_system.custom_system_attributes.append(
+                #     # ! As long as value is dictionary, use SubSection
+                #     # ParamEntry(name=particles_group_key, value=val, unit=units)
+                # )
 
             # get the next branch level
             if particles_subgroup:
