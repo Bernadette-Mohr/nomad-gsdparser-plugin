@@ -16,14 +16,6 @@ if not TYPE_CHECKING:
         BoundLogger,
     )
 
-from ase.symbols import symbols2numbers
-from ase.utils import (
-    formula_hill,
-)  # TODO: use to generate chemical formula if symbols2numbers is True?
-from collections import defaultdict
-import h5py
-from h5py import Group
-from nomad_simulations.schema_packages.particles_state import ParticlesState
 import nomad_simulations.schema_packages.properties.energies as energy_module
 import nomad_simulations.schema_packages.properties.forces as force_module
 import numpy as np
@@ -127,8 +119,6 @@ class GSDParser(MDParser):
         self._program_dict = None
         self._n_frames = None
         self._first_frame = True
-        # ! Test to figure out what format is expected for the particles group:
-        self.h5_write = h5py.File('test_gsd-nomad.h5', 'w')
         self._time_unit = ureg.picosecond
         # ['N', 'position', 'orientation', 'types', 'typeid', 'mass', 'charge',
         # 'diameter', 'body', 'moment_inertia', 'velocity', 'angmom', 'image',
@@ -289,92 +279,40 @@ class GSDParser(MDParser):
             particles_typeid=None,
         )
         # create the topology
-        mol_groups = []
-        mol_groups.append({})
-        mol_groups[0]['molecules'] = []
-        mol_groups[0]['molecules'].append(molecules[0])
-        mol_groups[0]['type'] = 'molecule_group'
-        mol_groups[0]['is_molecule'] = False
-        print(mol_groups)
+        mol_groups = dict()
+        mol_groups['group_mol_type_0'] = dict()
+        mol_groups['group_mol_type_0']['particles_group'] = dict()
+        mol_groups['group_mol_type_0']['particles_group']['molecule_0'] = molecules[0]
+        mol_groups['group_mol_type_0']['type'] = 'molecule_group'
+        mol_groups['group_mol_type_0']['is_molecule'] = False
+        mol_groups['group_mol_type_0']['indices'] = molecules[0]['indices']
         for mol in molecules[1:]:
             flag_mol_group_exists = False
-            for i_mol_group in range(len(mol_groups)):
-                if self.is_same_molecule(mol, mol_groups[i_mol_group]['molecules'][0]):
-                    mol_groups[i_mol_group]['molecules'].append(mol)
+            for mol_group_key in mol_groups.keys():
+                if self.is_same_molecule(
+                    mol,
+                    mol_groups[mol_group_key]['particles_group'].get('molecule_0', {}),
+                ):
+                    new_mol_label = (
+                        f'molecule_{len(mol_groups[mol_group_key]["particles_group"])}'
+                    )
+                    mol_groups[mol_group_key]['particles_group'][new_mol_label] = mol
+                    indices = mol_groups[mol_group_key]['indices']
+                    mol_groups[mol_group_key]['indices'] = np.concatenate(
+                        (indices, mol['indices'])
+                    )
                     flag_mol_group_exists = True
                     break
             if not flag_mol_group_exists:
-                mol_groups.append({})
-                mol_groups[-1]['molecules'] = []
-                mol_groups[-1]['molecules'].append(mol)
-                mol_groups[-1]['type'] = 'molecule_group'
-                mol_groups[-1]['is_molecule'] = False
+                new_mol_group_label = f'group_mol_type_{len(mol_groups)}'
+                mol_groups[new_mol_group_label] = dict()
+                mol_groups[new_mol_group_label]['particles_group'] = dict()
+                mol_groups[new_mol_group_label]['particles_group']['molecule_0'] = mol
+                mol_groups[new_mol_group_label]['type'] = 'molecule_group'
+                mol_groups[new_mol_group_label]['is_molecule'] = False
+                mol_groups[new_mol_group_label]['indices'] = mol['indices']
 
-        if not molecule_labels:
-            molecule_labels = [f'mol_type_{idx}' for idx in range(len(mol_groups))]
-
-        for i_mol_group, mol_group in enumerate(mol_groups):
-            mol_groups[i_mol_group]['formula'] = (
-                molecule_labels[i_mol_group]
-                + '('
-                + str(len(mol_group['molecules']))
-                + ')'
-            )
-            mol_groups[i_mol_group]['label'] = 'group_' + str(
-                molecule_labels[i_mol_group]
-            )
-            mol_group_indices = []
-            for i_molecule, molecule in enumerate(mol_group['molecules']):
-                molecule['label'] = molecule_labels[i_mol_group]
-                mol_indices = molecule['indices']
-                mol_group_indices.append(mol_indices)
-            mol_group['indices'] = np.concatenate(mol_group_indices)
-
-        topology_keys = [
-            'type',
-            'formula',
-            'particles_group',
-            'label',
-            'is_molecule',
-            'indices',
-        ]
-        custom_keys = ['molecules', 'residue_groups', 'residues']  # ? Remove residues?
-        mol_groups_dict, topology_dict = dict(), dict()
-        mol_groups_label = 'particles_group'  # ? Need?
-        for i_mol_group, mol_group in enumerate(
-            mol_groups
-        ):  # mol_group: dict of same molecule type
-            gsd_mol_group_label = f'group_{molecule_labels[i_mol_group]}'
-            gsd_mol_group_dict = dict()
-            for mol_group_key in mol_group.keys():
-                if mol_group_key not in topology_keys + custom_keys:
-                    continue
-                if mol_group_key != 'molecules':
-                    gsd_mol_group_dict[mol_group_key] = mol_group[mol_group_key]
-                else:
-                    gsd_molecules_group_label = 'particles_group'
-                    gsd_molecules_group_dict = dict()
-                    for i_molecule, molecule in enumerate(mol_group[mol_group_key]):
-                        gsd_molecule_label = f'molecule_{str(i_molecule)}'
-                        gsd_molecule_dict = dict()
-                        for mol_key in molecule.keys():
-                            if mol_key not in topology_keys + custom_keys:
-                                continue
-                            # if mol_key != 'residue_groups':
-                            gsd_molecule_dict[mol_key] = molecule[mol_key]
-                        gsd_molecules_group_dict[gsd_molecule_label] = gsd_molecule_dict
-                    gsd_mol_group_dict[gsd_molecules_group_label] = (
-                        gsd_molecules_group_dict
-                    )
-            mol_groups_dict[gsd_mol_group_label] = gsd_mol_group_dict
-        topology_dict[mol_groups_label] = mol_groups_dict
-        print(topology_dict.keys())
-        for key in topology_dict.keys():
-            print(topology_dict[key].keys())
-            for key2 in topology_dict[key].keys():
-                print(topology_dict[key][key2].keys())
-
-        return topology_dict  # mol_groups
+        return mol_groups
 
     def get_connectivity(self, interactions, molecule_labels=None):
         # TODO: Carry molecule_labels through to a meaningful point in case molecule labels were passed by user.
@@ -382,7 +320,7 @@ class GSDParser(MDParser):
         for key in interactions.keys():
             if interactions[key]['N'] == 0:
                 self.logger.warn(f'No {key} information found in GSD file.')
-                _connectivity[key] = []  # None
+                _connectivity[key] = []
             else:
                 _connectivity[key] = list(
                     map(tuple, interactions[key]['group'].tolist())
@@ -576,43 +514,36 @@ class GSDParser(MDParser):
         self,
         nomad_sec: ModelSystem,
         gsd_sec_particlesgroup: dict,
-        # path_particlesgroup='',
     ):
         data = {}
         for key in gsd_sec_particlesgroup.keys():
-            print('gsd_sec_particlesgroup key:', key)
             particles_group = {
                 group_key: gsd_sec_particlesgroup[key].get(group_key, {})
                 for group_key in gsd_sec_particlesgroup[key].keys()
             }
-            print('particles_group keys:', particles_group.keys())
             sec_model_system = ModelSystem()
             nomad_sec.model_system.append(sec_model_system)
-            data['branch_label'] = particles_group.pop('label', None)
+            data['branch_label'] = key
             data['atom_indices'] = particles_group.pop('indices', None)
-            # TODO remove the deprecated below from the test file
-            # sec_atomsgroup.type = particles_group.pop("type", None) #? deprecate?
+            data['bonds'] = particles_group.pop('bonds', None)
+            data['names'] = particles_group.pop('names', None)
             particles_group.pop('type', None)
-            # sec_atomsgroup.is_molecule = particles_group.pop("is_molecule", None) #? deprecate?
             particles_group.pop('is_molecule', None)
-            particles_group.pop('formula', None)  # covered in normalization now
             # write all the standard quantities to the archive
             self.parse_section(data, sec_model_system)
             particles_subgroup = particles_group.pop('particles_group', None)
             # set the remaining attributes
             for particles_group_key in particles_group.keys():
                 val = particles_group.get(particles_group_key)
-                # sec_model_system.custom_system_attributes.append(
-                #     # ! As long as value is dictionary, use SubSection
-                #     # ParamEntry(name=particles_group_key, value=val, unit=units)
-                # )
+                sec_model_system.custom_system_attributes.append(
+                    ParamEntry(name=particles_group_key, value=val)
+                )
 
             # get the next branch level
             if particles_subgroup:
                 self.parse_system_hierarchy(
                     sec_model_system,
                     particles_subgroup,
-                    # f'{path_particlesgroup_key}.particles_group',
                 )
 
     def parse_system(self, simulation, frame_idx=None, frame=None):

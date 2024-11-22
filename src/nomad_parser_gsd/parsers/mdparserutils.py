@@ -163,7 +163,6 @@ class MDParser(Parser):
 
         if (step := data.get('step')) is not None and step not in self.trajectory_steps:
             return
-
         # Check if parsed system is in coarse-grained representation
         is_cg = False
         if 'particle_cell' in data.keys():

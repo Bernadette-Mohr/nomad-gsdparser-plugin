@@ -57,7 +57,7 @@ class ParamEntry(ArchiveSection):
     )
 
     value = Quantity(
-        type=JSON,
+        type=str,
         shape=[],
         description="""
         Value of the parameter as a string.
@@ -165,7 +165,7 @@ class ForceEntry(ArchiveSection):
 #         extends_base_section=True,
 #     )
 
-#     x_h5md_parameters = SubSection(
+#     x_gsd_parameters = SubSection(
 #         sub_section=ParamEntry.m_def,
 #         description="""
 #         Contains non-normalized force calculation parameters.
@@ -180,7 +180,7 @@ class ForceEntry(ArchiveSection):
 #         extends_base_section=True,
 #     )
 
-#     x_h5md_parameters = SubSection(
+#     x_gsd_parameters = SubSection(
 #         sub_section=ParamEntry.m_def,
 #         description="""
 #         Contains non-normalized neighbor searching parameters.
@@ -225,7 +225,7 @@ class TrajectoryOutputs(nomad_simulations.schema_packages.outputs.TrajectoryOutp
         extends_base_section=True,
     )
 
-    x_h5md_custom_outputs = SubSection(
+    x_gsd_custom_outputs = SubSection(
         sub_section=CustomProperty.m_def,
         description="""
         Contains other generic custom outputs that are not already defined.
@@ -256,7 +256,7 @@ class Author(ArchiveSection):
     )
 
 
-class H5MDCreator(nomad_simulations.schema_packages.general.Program):
+class GSDCreator(nomad_simulations.schema_packages.general.Program):
     """
     Contains the specifications of the program.
     """
@@ -290,7 +290,7 @@ class Simulation(nomad_simulations.schema_packages.general.Simulation):
     )
 
     # TODO Not sure how we are dealing with versioning with H5MD-NOMAD
-    x_h5md_version = Quantity(
+    x_gsd_version = Quantity(
         type=np.dtype(np.int32),
         shape=[2],
         description="""
@@ -298,8 +298,8 @@ class Simulation(nomad_simulations.schema_packages.general.Simulation):
         """,
     )
 
-    x_h5md_author = SubSection(sub_section=Author.m_def)
+    x_gsd_author = SubSection(sub_section=Author.m_def)
 
-    x_h5md_creator = SubSection(
+    x_gsd_creator = SubSection(
         sub_section=nomad_simulations.schema_packages.general.Program.m_def
     )
