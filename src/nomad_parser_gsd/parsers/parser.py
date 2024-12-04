@@ -1,8 +1,10 @@
 import os
 import sys
 
-#! TODO: Why is TYPE_CHECKING False?
-from typing import TYPE_CHECKING, List, Iterable, Union
+## from template
+from typing import (
+    TYPE_CHECKING,
+)
 
 if not TYPE_CHECKING:
     from nomad.datamodel.datamodel import (
@@ -128,7 +130,7 @@ class GSDParser(MDParser):
             'positions': 'position',
             'velocities': 'velocity',
             'forces': None,
-            'labels': 'types',
+            # 'labels': 'types',
             'label': None,
             'mass': 'mass',
             'charge': 'charge',
@@ -174,8 +176,8 @@ class GSDParser(MDParser):
     def get_molecules_from_bond_list(
         self,
         n_particles: int,
-        bond_list: List[int],
-        particle_types: List[str] = None,
+        bond_list: list[int],
+        particle_types: list[str] = None,
         particles_typeid=None,
     ):
         """
@@ -386,7 +388,7 @@ class GSDParser(MDParser):
             'step': ['system', 'outputs'],
             'n_atoms': 'system',
             'positions': 'system',
-            'labels': 'system',
+            # 'labels': 'system',
             'mass': 'system',
             'velocities': 'system',
             'charge': 'system',
@@ -396,6 +398,19 @@ class GSDParser(MDParser):
             'forces': 'outputs',
             'label': 'outputs',
         }
+
+        # Special treatment for particle labels
+        particle_types = self._particle_data_dict.get('types')
+        particles_typeid = self._particle_data_dict.get('typeid')
+        if particle_types:
+            self._system_info['system']['labels'] = (
+                [
+                    particle_types[particles_typeid[i_atom]]
+                    for i_atom in range(self._particle_data_dict.get('N', []))
+                ]
+                if particles_typeid.any()
+                else None
+            )
 
         # Get quantities from particles chunk of GSD file
         for key, gsd_key in self._nomad_to_particles_group_map.items():
@@ -548,7 +563,6 @@ class GSDParser(MDParser):
 
     def parse_system(self, simulation, frame_idx=None, frame=None):
         particles_dict = self._system_info.get('system')
-        # print(particles_dict.keys())
         _path = f'{frame_idx}'
         if not particles_dict:
             self.logger.error('No particle information found in GSD file.')
