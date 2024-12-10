@@ -39,6 +39,7 @@ from nomad_simulations.schema_packages.particles_state import ParticlesState
 # spec.loader.exec_module(ps)
 
 from nomad_simulations.schema_packages.model_system import (
+    Cell,
     AtomicCell,
     ModelSystem,
     ParticleCell,
@@ -153,7 +154,7 @@ class MDParser(Parser):
         data: Dict[str, Any],
         simulation: Simulation,
         model_system: ModelSystem = None,
-        simulation_cell: AtomicCell = None,
+        simulation_cell: Cell = None,
     ) -> None:
         """
         Create a system section and write the provided data.
@@ -164,6 +165,7 @@ class MDParser(Parser):
         if (step := data.get('step')) is not None and step not in self.trajectory_steps:
             return
         # Check if parsed system is in coarse-grained representation
+        # ! Assuming that atomic and particle cells are mutually exclusive
         is_cg = False
         if 'particle_cell' in data.keys():
             is_cg = True
@@ -171,6 +173,7 @@ class MDParser(Parser):
         if model_system is None:
             model_system = ModelSystem()
 
+        simulation_cell_dict = {}
         if simulation_cell is None:
             if is_cg:
                 simulation_cell = ParticleCell()
@@ -179,15 +182,16 @@ class MDParser(Parser):
                 simulation_cell = AtomicCell()
                 simulation_cell_dict = data.pop('atomic_cell')
 
-        type_labels = simulation_cell_dict.pop('labels')
+        labels = simulation_cell_dict.pop('labels')
         if is_cg:
-            for label in type_labels:
+            for label in labels:
                 atoms_state = ParticlesState(particle_type=label)
                 simulation_cell.particles_state.append(atoms_state)
         else:
-            for label in type_labels:
+            for label in labels:
                 atoms_state = AtomsState(label)
                 simulation_cell.atoms_state.append(atoms_state)
+
         self.parse_section(simulation_cell_dict, simulation_cell)
         model_system.cell.append(simulation_cell)
         self.parse_section(data, model_system)

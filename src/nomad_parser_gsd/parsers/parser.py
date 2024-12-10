@@ -372,8 +372,8 @@ class GSDParser(MDParser):
                 ).__dict__
                 if value is None:
                     self.logger.warning(
-                        f'No attributes found for key {value}. {value.upper()} attributes will '
-                        'not be stored.'
+                        f'No attributes found for key {value}. {value.upper()}'
+                        'attributes will not be stored.'
                     )
                     return None
                 else:
@@ -685,6 +685,7 @@ class GSDParser(MDParser):
             name=self._program_dict.get('gsd_creator_name'),
             version=self._program_dict.get('gsd_creator_version'),
         )
+        # TODO Avoid throwing warnings every step
         for frame_idx, frame in enumerate(self._data_parser.filegsd):
             self.get_system_info(frame_idx=frame_idx, frame=frame)
             self.parse_system(simulation, frame_idx=frame_idx, frame=frame)
