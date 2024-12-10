@@ -130,7 +130,6 @@ class GSDParser(MDParser):
             'positions': 'position',
             'velocities': 'velocity',
             'forces': None,
-            # 'labels': 'types',
             'label': None,
             'mass': 'mass',
             'charge': 'charge',
