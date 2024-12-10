@@ -25,11 +25,7 @@ maintainers = [
     { name = "Bernadette Mohr", email = "bernadette.mohr@physik.hu-berlin.de" },
 ]
 license = { file = "LICENSE" }
-dependencies = [# "nomad-lab@git+https://github.com/nomad-coe/nomad.git@develop",
-		"nomad-lab@file:///home/bmohr/software/nomad-FAIR",
-                # "nomad-simulations>=0.0.3", 
-		# "nomad-simulations@file:///home/bmohr/software/nomad-simulations",
-		"gsd>=3.3.1"]
+dependencies = ["nomad-lab>=1.3.4", "nomad-simulations>=0.3.1"]
 
 [project.urls]
 Repository = "https://github.com/FAIRmat-NFDI/nomad-parser-gsd"
@@ -78,7 +74,7 @@ select = [
     "UP",
     # isort
     "I",
-    # pylint 
+    # pylint
     "PL",
 ]
 
