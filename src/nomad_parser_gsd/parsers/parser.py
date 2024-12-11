@@ -1,5 +1,4 @@
 import os
-import sys
 
 ## from template
 from typing import (
@@ -54,11 +53,9 @@ try:
     import gsd.fl as gsdfl
     import gsd.hoomd as gsdhoomd
     from gsd.hoomd import HOOMDTrajectory
-    # import gsd.pygsd as gsdpy
 except ImportError:
     logging.warning('Required module gsd.hoomd not found.')
     gsdhoomd = False
-    # gsdpy = False
 
 configuration = config.get_plugin_entry_point(
     'nomad_parser_gsd.parsers:parser_entry_point'
@@ -320,7 +317,7 @@ class GSDParser(MDParser):
         _connectivity = dict()
         for key in interactions.keys():
             if interactions[key]['N'] == 0:
-                self.logger.warn(f'No {key} information found in GSD file.')
+                self.logger.warning(f'No {key} information found in GSD file.')
                 _connectivity[key] = []
             else:
                 _connectivity[key] = list(
@@ -685,7 +682,10 @@ class GSDParser(MDParser):
             version=self._program_dict.get('gsd_creator_version'),
         )
         # TODO Avoid throwing warnings every step
+        max_frames = 3
         for frame_idx, frame in enumerate(self._data_parser.filegsd):
+            if frame_idx > max_frames:
+                break
             self.get_system_info(frame_idx=frame_idx, frame=frame)
             self.parse_system(simulation, frame_idx=frame_idx, frame=frame)
 
