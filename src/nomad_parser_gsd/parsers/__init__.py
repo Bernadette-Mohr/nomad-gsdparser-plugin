@@ -1,21 +1,20 @@
 from nomad.config.models.plugins import ParserEntryPoint
 from pydantic import Field
-
 from typing import Optional
 
 
 class GSDParserEntryPoint(ParserEntryPoint):
-    # parameter: int = Field(0, description='Custom configuration parameter')
-
-    # def load(self):
-    #     from nomad_parser_gsd.parsers.parser import GSDParser
-
-    #     return GSDParser(**self.dict())
     parser_class_name: str = Field(
         description="""
         The fully qualified name of the Python class that implements the parser.
         This class must have a function `def parse(self, mainfile, archive, logger)`.
     """
+    )
+    level: int = Field(
+        0,
+        description="""
+        Order of execution of parser with respect to other parsers.
+    """,
     )
     code_name: Optional[str]
     code_homepage: Optional[str]
@@ -33,16 +32,15 @@ class GSDParserEntryPoint(ParserEntryPoint):
 
 parser_entry_point = GSDParserEntryPoint(
     name='nomad-parser-gsd',
-    aliases=['gsd'],
-    description='Parser for the GSD file format, the native file format for HOOMD-blue. (https://gsd.readthedocs.io/en/v3.3.1/, https://glotzerlab.engin.umich.edu/hoomd-blue/)',
-    python_package='nomad-parser-gsd',
-    mainfile_binary_header_re=b'^0x65DF65DF65DF65DF',
-    # mainfile_contents_dict={},  # ?
-    # mainfile_mime_re=,
-    mainfile_name_re=r'^.*\.gsd$',
+    aliases=['nomad-parser-gsd', 'gsd'],
+    description='Entry point for the GSD parser. ',
+    python_package='nomad-parser-gsd.parsers',
     parser_class_name='nomad_parser_gsd.parsers.parser.GSDParser',
+    level=1,
     code_name='GSD',
     code_category='MD code',
+    # mainfile_binary_header_re=b'0x65DF65DF65DF65DF',  #! Seems to be wrong, didn't cause issues initially.
+    mainfile_name_re=r'^.*\.gsd$',
     metadata={
         'codeCategory': 'MD code',
         'codeLabel': 'GSD',
